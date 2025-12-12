@@ -17,8 +17,11 @@ module instr_dcd (
 // FSM -> 2 stari: 0 = astept setup byte, 1 = astept data byte
 reg state;
 
+localparam STATE_SETUP = 1'b0;
+localparam STATE_DATA  = 1'b1;
+
 // informatii pe care le memoram din primul byte
-reg rw_bit;     // bitul 7: 1 = write, 0 = read
+reg rw_bit;        // bitul 7: 1 = write, 0 = read
 reg high_low;   // bitul 6: 1 = MSB, 0 = LSB
 
 // redeclararea porturilor output ca reg pentru a le putea folosi in blocuri always
@@ -28,7 +31,12 @@ reg [5:0] addr_r;
 reg [7:0] data_out_r;
 reg [7:0] data_write_r;
 
-// legam output-urile modulului de registrele intern
+// registre pentru sincronizare si detectie front
+reg byte_sync_d1;
+reg byte_sync_d2;
+reg byte_sync_d3;
+
+// legam output-urile modulului de registrele interne
 assign read = read_r;
 assign write = write_r;
 assign addr = addr_r;
@@ -39,7 +47,7 @@ assign data_write = data_write_r;
 always @(posedge clk or negedge rst_n) begin
     // daca rst_n e activ, registrele sunt intr-o stare sigura (zero)
     if (!rst_n) begin
-        state <= 1'b0;
+        state <= STATE_SETUP;
         read_r <= 1'b0;
         write_r <= 1'b0;
         addr_r <= 6'd0;
@@ -47,38 +55,44 @@ always @(posedge clk or negedge rst_n) begin
         data_write_r <= 8'd0;
         rw_bit <= 1'b0;
         high_low <= 1'b0;
+        
+        // resetare sincronizator
+        byte_sync_d1 <= 1'b0;
+        byte_sync_d2 <= 1'b0;
+        byte_sync_d3 <= 1'b0;
     end else begin
-    
         // la fiecare ciclu de ceas resetam read si write
         read_r  <= 1'b0;
         write_r <= 1'b0;
         
-        // daca avem un byte complet
-        if (byte_sync) begin
+        // sincronizam byte_sync in domeniul de ceas clk
+        byte_sync_d1 <= byte_sync; // sincronizare: protectie metastabilitate
+        byte_sync_d2 <= byte_sync_d1; // starea curenta (stabila)
+        byte_sync_d3 <= byte_sync_d2; // starea anterioara (intarziata cu un ciclu)
+
+        // detectam frontul crescator: a fost 0, acum este 1
+        if (byte_sync_d2 && !byte_sync_d3) begin
+            
             case (state)
-            
-            // 1. Faza de setup
-            1'b0: begin
-                rw_bit   <= data_in[7];
-                high_low <= data_in[6];
-                addr_r   <= data_in[5:0];  // adresa
-                
-                state <= 1'b1; // trecem la faza de date
-            end
-            
-            // 2. Faza de date
-            1'b1: begin
-                if (rw_bit) begin
-                    data_write_r <= data_in; // scrie byte-ul primit de la SPI în registru 
-                    write_r <= 1'b1; 
-                end else begin
-                    data_out_r <= data_read; // pune byte-ul din registru în data_out_r (va fi trimis la SPI)
-                    read_r <= 1'b1;
+                // 1. Faza de setup
+                STATE_SETUP: begin
+                    rw_bit   <= data_in[7];
+                    high_low <= data_in[6];
+                    addr_r   <= data_in[5:0]; // adresa
+                    state    <= STATE_DATA; // trecem la faza de date
                 end
                 
-                state <= 1'b0; // revenim la asteptarea urmatoarei instructiuni
-            end
-            
+                // 2. Faza de date
+                STATE_DATA: begin
+                    if (rw_bit) begin
+                        data_write_r <= data_in; // scrie byte-ul primit de la SPI în registru 
+                        write_r <= 1'b1; 
+                    end else begin
+                        data_out_r <= data_read; // pune byte-ul din registru în data_out_r (va fi trimis la SPI)
+                        read_r <= 1'b1;
+                    end
+                    state <= STATE_SETUP; // revenim la asteptarea urmatoarei instructiuni
+                end
             endcase
         end
      end
