@@ -14,7 +14,7 @@ Un exemplu se poate vedea în graficul de mai jos:
 
 <div align="center">
 
-![Un exemplu de formă de undă PWM cu diferite configurări](media/example_pwm.png)
+![Un exemplu de formă de undă PWM cu diferite configurări](../media/example_pwm.png)
 
 _Figură: Forma de undă pentru un semnal PWM de perioadă de 8 cicli de ceas cu factor de umplere de 75%_
 
@@ -29,7 +29,7 @@ Acestea fiind zise, generatorul de PWM are următoarele componente majore pe car
 
 <div align="center">
 
-![ Nivelul de ansamblu al perifericului, împreună cu legăturile dintre submodule](media/top_level.png)
+![ Nivelul de ansamblu al perifericului, împreună cu legăturile dintre submodule](../media/top_level.png)
 
 _Figură: Nivelul de ansamblu al perifericului, împreună cu legăturile dintre submodule_
 
@@ -72,7 +72,7 @@ Decodorul are următoarele etape, fiecare de lungimea unui byte:
 
 <div align="center">
 
-![Forma de undă pentru o operație de scriere](media/write.png)
+![Forma de undă pentru o operație de scriere](../media/write.png)
 
 _Figură: Forma de undă pentru o operație de scriere, în cele 2 etape. Atenție la domeniile de ceas, aici e in raport cu ceasul SPI!_
 
@@ -119,7 +119,7 @@ Funcționalitățile numărătorului trebuie să fie în felul următor:
 
 <div align="center">
 
-![Numărătorul cu prescaler setat la 4](media/counter_prescale.png)
+![Numărătorul cu prescaler setat la 4](../media/counter_prescale.png)
 
 _Figură: Forma de undă a numărătorului cu prescalerul setat la 2, adică va număra de 4 ori pentru incrementarea numărătorului._
 
@@ -140,7 +140,7 @@ Mecanismul prin care semnalul PWM e generat este descris mai jos:
 
 <div align="center">
 
-![Un semnal de PWM aliniat la stânga și la dreapta, prescale 1, semnalul se activează și dezactivează imediat cum counterul ajunge la una din valorile compare.](media/pwm_aligned.png)
+![Un semnal de PWM aliniat la stânga și la dreapta, prescale 1, semnalul se activează și dezactivează imediat cum counterul ajunge la una din valorile compare.](../media/pwm_aligned.png)
 
 _Figură: Un semnal de PWM aliniat la stânga și la dreapta, prescale 1, semnalul se activează și dezactivează imediat cum counterul ajunge la una din valorile compare._
 
