@@ -22,42 +22,49 @@ always @(posedge clk or negedge rst_n) begin
         pwm_out <= 1'b0;
     end 
     else begin
-
         if (!pwm_en) begin
             pwm_out <= pwm_out;
         end 
         else begin
+            
+            if (compare1 == compare2) begin
+                pwm_out <= 1'b0;
+            end
+            else if (compare1 == 16'd0) begin
+                pwm_out <= 1'b0;
+            end
 
             // ALIGNED MODE
-            if (aligned_mode) begin
-
-                // New cycle starts when count reaches 0
-                if (count_val == 16'd0) begin
-                    pwm_out <= right_aligned ? 1'b0 : 1'b1;
-                end
-
-                // Toggle when reaching compare1
-                if (count_val == compare1) begin
-                    pwm_out <= ~pwm_out;
+            else if (aligned_mode) begin
+                if (!right_aligned) begin
+                    // Left Aligned: Falls at compare1
+                    if (count_val == compare1) 
+                        pwm_out <= 1'b0;
+                    // Starts High for the next cycle (at end of period)
+                    else if (count_val == period) 
+                        pwm_out <= 1'b1;
+                end 
+                else begin
+                    // Right Aligned: Rises at compare1
+                    if (count_val == compare1)
+                        pwm_out <= 1'b1;
+                    // Resets to Low at start of cycle
+                    else if (count_val == 16'd0)
+                        pwm_out <= 1'b0;
                 end
             end
 
             // UNALIGNED MODE
             else if (unaligned_mode) begin
-                // Always start cycle at 0
-                if (count_val == 16'd0) begin
+                // Priority 1: Falling edge at compare2
+                if (count_val == compare2) 
                     pwm_out <= 1'b0;
-                end
-
-                // Rising edge at compare1
-                if (count_val == compare1) begin
+                // Priority 2: Rising edge at compare1
+                else if (count_val == compare1) 
                     pwm_out <= 1'b1;
-                end
-
-                // Falling edge at compare2
-                if (count_val == compare2) begin
+                // Priority 3: Reset at start of cycle
+                else if (count_val == 16'd0) 
                     pwm_out <= 1'b0;
-                end
             end
         end
     end
