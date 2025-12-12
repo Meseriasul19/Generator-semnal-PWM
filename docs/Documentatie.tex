@@ -96,10 +96,6 @@ Automatul ciclează între două stări:
     \item \textbf{Starea Date (1):} Execută efectiv transferul de date (citire sau scriere) și revine în Setup.
 \end{enumerate}
 
-% =====================================================
-%                   SECTIUNEA NOUA
-% =====================================================
-
 \section{Fișierul de Regiștri (\texttt{regs})}
 
 Modulul \texttt{regs} implementează fișierul configurabil de registre al perifericului. Acesta reprezintă interfața principală între software (prin SPI) și hardware (counter și generatorul PWM).
@@ -119,10 +115,6 @@ Modulul \texttt{regs} implementează fișierul configurabil de registre al perif
     \item Citirile returnează valoarea corectă, altfel 0 pentru adrese invalide.
     \item Resetul global readuce toate registrele la valorile implicite.
 \end{itemize}
-
-% =====================================================
-%                SECTIUNEA 5
-% =====================================================
 
 \section{Numărătorul (\texttt{counter})}
 
@@ -146,10 +138,6 @@ Modulul \texttt{counter} furnizează baza de timp pentru generarea semnalului PW
     \item \texttt{EN = 0} oprește contorul.
     \item \texttt{EN = 1} permite avansarea contorului pe baza prescalerului.
 \end{itemize}
-
-% =====================================================
-%                SECTIUNEA 6
-% =====================================================
 
 \section{Generatorul PWM (\texttt{pwm\_gen})}
 
