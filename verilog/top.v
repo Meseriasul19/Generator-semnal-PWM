@@ -2,6 +2,7 @@
     DO NOT, UNDER ANY CIRCUMSTANCES, MODIFY THIS FILE! THIS HAS TO REMAIN AS SUCH IN ORDER 
     FOR THE TESTBENCH PROVIDED TO WORK PROPERLY.
 */
+
 module top(
     // peripheral clock signals
     input clk,
@@ -15,13 +16,6 @@ module top(
     output pwm_out
 );
 
-wire clk;
-wire rst_n;
-
-wire sclk;
-wire cs_n;
-wire miso;
-wire mosi;
 
 wire byte_sync;
 wire[7:0] data_in;
@@ -49,14 +43,17 @@ spi_bridge i_spi_bridge (
     .rst_n(rst_n),
     .sclk(sclk),
     .cs_n(cs_n),
-    .miso(miso),
-    .mosi(mosi)
+    .mosi(miso),
+    .miso(mosi),
+    .byte_sync(byte_sync),
+    .data_in(data_in),
+    .data_out(data_out)
 );
 
 instr_dcd i_instr_dcd (
     .clk(clk),
     .rst_n(rst_n),
-    .byte_sync(),
+    .byte_sync(byte_sync),
     .data_in(data_in),
     .data_out(data_out),
     .read(read),
