@@ -1,0 +1,193 @@
+\documentclass[12pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[romanian]{babel}
+\usepackage{amsmath, amssymb}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{fancyvrb}
+\usepackage{booktabs}
+\usepackage{verbatim}
+\usepackage{graphicx}
+
+\geometry{
+ a4paper,
+ margin=1in,
+}
+
+\lstset{
+    language=Verilog,
+    basicstyle=\small\ttfamily,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    captionpos=b,
+    identifierstyle=\color{black},
+}
+
+\title{Implementare Generator Semnal PWM}
+\author{Ciobanu Florinela-Bianca \and Călimoceanu Răzvan \and Grupa \texttt{333AA}}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introducere}
+Proiectul vizează dezvoltarea unui Periferic Generator de Semnal PWM (Pulse Width Modulation) format din cinci componente majore: \textbf{Bridge-ul SPI}, \textbf{Decodorul de Instrucțiuni}, \textbf{Fișierul de Registri}, \textbf{Numărătorul} și \textbf{Generatorul PWM}. Această documentație prezintă implementarea modulară a perifericului, concentrându-se pe interfața de comunicație și pe structura logică a întregului sistem.
+
+\section{Bridge-ul de Comunicație SPI (\texttt{spi\_bridge})}
+Modulul \texttt{spi\_bridge} acționează ca interfață \textbf{Slave SPI}, convertind datele seriale primite (MOSI) în date paralele și pregătind datele interne paralele pentru transmisia serială (MISO).
+
+\subsection{Reguli SPI Implementate}
+Implementarea respectă următoarele reguli de timing:
+\begin{itemize}
+    \item \textbf{CPOL=0, CPHA=0:} Datele sunt \textbf{scrise} pe frontul descrescător al ceasului (\texttt{sclk}) și sunt \textbf{citite} pe frontul crescător.
+    \item \textbf{MSB First:} Bitul cel mai semnificativ este transmis primul.
+    \item \textbf{Sincronizare ceas:} S-a considerat că ceasul SPI (\texttt{sclk}) și ceasul perifericului (\texttt{clk}) sunt \textbf{sincrone} (\texttt{10MHz}).
+\end{itemize}
+
+\subsection{Logica de Recepție (MOSI)}
+Logica de recepție rulează pe frontul crescător al ceasului SPI.
+
+\begin{itemize}
+    \item \textbf{Shift Register (\texttt{shift\_in}):} La fiecare front crescător al ceasului (\texttt{always @(posedge sclk)}), bitul \texttt{mosi} este preluat și shiftat la stânga.
+    \item \textbf{Generare Sincronizare Byte (\texttt{byte\_sync}):} După 8 biți primiți, semnalul \textbf{\texttt{byte\_sync}} este pulsat timp de un ciclu.
+    \item \textbf{Ieșirea Paralelă (\texttt{data\_in}):} Byte-ul recepționat este pus la dispoziția decodorului.
+\end{itemize}
+
+\subsection{Logica de Transmitere (MISO)}
+Logica de transmisie rulează pe frontul descrescător al ceasului SPI.
+
+\begin{itemize}
+    \item \textbf{Tri-state:} \texttt{miso} este deconectat (\texttt{1'bZ}) când \texttt{cs\_n} este High.
+    \item \textbf{Preload:} Când slave-ul este inactiv, registrul \texttt{shift\_out} este încărcat cu \texttt{data\_out}.
+    \item \textbf{Transmisie:} La fiecare negedge de \texttt{sclk}, se transmite MSB-ul curent.
+\end{itemize}
+
+\section{Decodorul de Instrucțiuni (\texttt{instr\_dcd})}
+
+Decodorul funcționează ca un \textbf{Automat cu Stări Finite (FSM)} cu două stări (Setup și Data), fiind responsabil de interpretarea comenzilor primite de la \texttt{spi\_bridge}.
+
+\subsection{Sincronizarea Semnalului \texttt{byte\_sync}}
+Deoarece semnalul \texttt{byte\_sync} generat de \texttt{spi\_bridge} are o durată nedeterminată raportată la ceasul de sistem (fiind generat în domeniul de ceas SPI lent), utilizarea sa directă ar putea cauza tranziții multiple eronate în FSM.
+
+Pentru a remedia acest aspect, am implementat un mecanism de \textbf{detecție a frontului crescător} folosind un sincronizator cu 3 niveluri de regiștri:
+\begin{itemize}
+    \item \texttt{byte\_sync\_d1}: Primul nivel preia semnalul asincron, protejând sistemul împotriva metastabilității.
+    \item \texttt{byte\_sync\_d2}: Al doilea nivel stabilizează semnalul în domeniul de ceas curent.
+    \item \texttt{byte\_sync\_d3}: Al treilea nivel memorează starea anterioară a semnalului.
+\end{itemize}
+
+FSM-ul avansează doar atunci când este detectat un front crescător valid, definit prin condiția logică:
+\[ \texttt{byte\_sync\_d2} == 1 \land \texttt{byte\_sync\_d3} == 0 \]
+Aceasta garantează procesarea unei singure instrucțiuni per byte recepționat.
+
+\subsection{Structura FSM}
+Automatul ciclează între două stări:
+\begin{enumerate}
+    \item \textbf{Starea Setup (0):} Decodifică primul byte pentru a extrage tipul operației (R/W), zona de registru (High/Low) și adresa.
+    \item \textbf{Starea Date (1):} Execută efectiv transferul de date (citire sau scriere) și revine în Setup.
+\end{enumerate}
+
+% =====================================================
+%                   SECTIUNEA NOUA
+% =====================================================
+
+\section{Fișierul de Regiștri (\texttt{regs})}
+
+Modulul \texttt{regs} implementează fișierul configurabil de registre al perifericului. Acesta reprezintă interfața principală între software (prin SPI) și hardware (counter și generatorul PWM).
+
+\subsection{Responsabilități}
+\begin{itemize}
+    \item Interpretarea operațiilor de citire și scriere primite de la decodor.
+    \item Maparea fiecărui registru la adrese pe un byte (inclusiv utilizarea segmentelor LSB/MSB).
+    \item Expunerea valorilor către modulele \texttt{counter} și \texttt{pwm\_gen}.
+    \item Implementarea registrului \texttt{COUNTER\_RESET} cu auto-clear.
+    \item Menținerea semnalului read-only \texttt{COUNTER\_VAL}.
+\end{itemize}
+
+\subsection{Comportament}
+\begin{itemize}
+    \item Scrierile se efectuează doar când \texttt{write = 1}.
+    \item Citirile returnează valoarea corectă, altfel 0 pentru adrese invalide.
+    \item Resetul global readuce toate registrele la valorile implicite.
+\end{itemize}
+
+% =====================================================
+%                SECTIUNEA 5
+% =====================================================
+
+\section{Numărătorul (\texttt{counter})}
+
+Modulul \texttt{counter} furnizează baza de timp pentru generarea semnalului PWM, implementând numărătoarea controlată prin registrele configurabile.
+
+\subsection{Funcționalitate}
+\begin{itemize}
+    \item Numărare crescătoare sau descrescătoare în funcție de \texttt{UPNOTDOWN}.
+    \item Limitarea prin valoarea \texttt{PERIOD}.
+    \item Gestionarea overflow-ului și underflow-ului:
+    \begin{itemize}
+        \item Dacă se numără în sus și se atinge \texttt{PERIOD}, contorul revine la 0.
+        \item Dacă se numără în jos și se atinge 0, contorul revine la \texttt{PERIOD}.
+    \end{itemize}
+    \item Prescaler implementat ca exponent: update la fiecare $2^{prescale}$ cicluri.
+    \item Resetare instantanee a contorului la activarea \texttt{COUNTER\_RESET}.
+\end{itemize}
+
+\subsection{Comportament}
+\begin{itemize}
+    \item \texttt{EN = 0} oprește contorul.
+    \item \texttt{EN = 1} permite avansarea contorului pe baza prescalerului.
+\end{itemize}
+
+% =====================================================
+%                SECTIUNEA 6
+% =====================================================
+
+\section{Generatorul PWM (\texttt{pwm\_gen})}
+
+Modulul \texttt{pwm\_gen} sintetizează semnalul de ieșire pe baza configurării registrelor și a valorii curente a numărătorului. Implementarea utilizează o logică de decizie ierarhică (bazată pe priorități) pentru a asigura un comportament determinist în toate situațiile.
+
+\subsection{Logica de Prioritate și Cazuri Limită}
+Pentru a preveni comportamente nedefinite, am implementat reguli de siguranță cu prioritate maximă:
+\begin{itemize}
+    \item \textbf{Protecție la Egalitate:} Dacă \texttt{COMPARE1 == COMPARE2}, ieșirea este forțată la \texttt{0} logic. Aceasta previne conflictele de comutare simultană.
+    \item \textbf{Protecție la Zero:} Dacă \texttt{COMPARE1 == 0}, ieșirea este menținută la \texttt{0} pentru a asigura un factor de umplere (duty cycle) de 0\% corect.
+\end{itemize}
+
+\subsection{Moduri de Funcționare Standard}
+Dacă nu sunt întâlnite condițiile de mai sus, generatorul operează conform modului selectat:
+
+\subsubsection{Mod Aliniat (\texttt{FUNCTIONS[1] = 0})}
+\begin{itemize}
+    \item \textbf{Aliniere la Stânga (\texttt{FUNCTIONS[0] = 0}):}
+    \begin{itemize}
+        \item Semnalul devine \texttt{0} la atingerea pragului \texttt{COMPARE1}.
+        \item Semnalul devine \texttt{1} la finalul perioadei (când \texttt{count\_val == PERIOD}), pregătind startul noului ciclu.
+    \end{itemize}
+    \item \textbf{Aliniere la Dreapta (\texttt{FUNCTIONS[0] = 1}):}
+    \begin{itemize}
+        \item Semnalul devine \texttt{1} la atingerea pragului \texttt{COMPARE1}.
+        \item Semnalul este resetat la \texttt{0} la începutul perioadei (când \texttt{count\_val == 0}).
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Mod Nealiniat (\texttt{FUNCTIONS[1] = 1})}
+În acest mod, prioritățile sunt esențiale pentru definirea formei de undă:
+\begin{enumerate}
+    \item \textbf{Resetare:} Prioritate 1 - Semnalul devine \texttt{0} la \texttt{COMPARE2}.
+    \item \textbf{Setare:} Prioritate 2 - Semnalul devine \texttt{1} la \texttt{COMPARE1}.
+    \item \textbf{Default:} Prioritate 3 - Semnalul este resetat la \texttt{0} la începutul ciclului (\texttt{count\_val == 0}).
+\end{enumerate}
+
+\subsection{Controlul Ieșirii}
+Semnalul \texttt{PWM\_EN} acționează ca un comutator global. Când este inactiv (\texttt{0}), ieșirea își păstrează ultima stare cunoscută (latch), iar logica de generare este ignorată.
+
+\end{document}
