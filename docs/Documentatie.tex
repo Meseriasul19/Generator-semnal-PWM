@@ -43,7 +43,7 @@
 Proiectul vizează dezvoltarea unui Periferic Generator de Semnal PWM (Pulse Width Modulation) format din cinci componente majore: \textbf{Bridge-ul SPI}, \textbf{Decodorul de Instrucțiuni}, \textbf{Fișierul de Registri}, \textbf{Numărătorul} și \textbf{Generatorul PWM}. Această documentație prezintă implementarea modulară a perifericului, concentrându-se pe interfața de comunicație și pe structura logică a întregului sistem.
 
 \section{Modificări realizate în fișierul \texttt{top.v}}
-Pentru funcționarea corectă a implementării am realizat următoarele modificări în scheletului inițial:
+Pentru funcționarea corectă a implementării am realizat următoarele modificări în scheletul inițial:
 \begin{itemize}
     \item Eliminarea redeclarărilor de tip \texttt{wire} pentru semnalele \texttt{clk}, \texttt{rst\_n}, \texttt{sclk}, \texttt{cs\_n}, \texttt{miso} și \texttt{mosi}, deoarece acestea sunt deja declarate ca porturi de intrare/ieșire în antetul modulului.
     \item La instanțierea modulului \texttt{spi\_bridge}, am inversat conectarea semnalelor \texttt{miso} și \texttt{mosi} pentru a respecta direcția datelor (input la input, output la output) și am adăugat parametrii lipsă: \texttt{byte\_sync}, \texttt{data\_in}, \texttt{data\_out}.
